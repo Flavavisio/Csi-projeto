@@ -12,7 +12,7 @@ function home(){return '<h1>O teu dia, mais simples.</h1><p class="muted">Tudo o
 function select(id,items,current){return '<select class="field" id="'+id+'">'+items.map(([v,t])=>'<option value="'+E(v)+'" '+(v===current?'selected':'')+'>'+E(t)+'</option>').join('')+'</select>'}
 function filtered(){let q=s.search.toLowerCase();return s.clients.filter(c=>(!q||[c.name,c.nif,c.postal_code,c.municipality,c.phone].some(x=>String(x||'').toLowerCase().includes(q)))&&(!s.district||c.district===s.district)&&(!s.municipality||c.municipality===s.municipality)&&(s.opened==='all'||(s.opened==='yes'?c.opened:!c.opened))&&(s.registered==='all'||(s.registered==='yes'?!!c.registration_number:!c.registration_number))&&(s.visited==='all'||(s.visited==='yes'?!noVisit(c):noVisit(c)))&&(s.quick===''||(s.quick==='zero'&&zero(c))||(s.quick==='unvisited'&&noVisit(c))||(s.quick==='closed'&&!c.opened))&&(s.billing==='all'||(s.billing==='zero'?zero(c):s.billing==='low'?c.annual_billing>0&&c.annual_billing<=5000:s.billing==='mid'?c.annual_billing>5000&&c.annual_billing<=25000:c.annual_billing>25000)))}
 function cust(c){
-const tel=String(c.phone||'').replace(/[^\\d+]/g,'');
+const tel=String(c.phone||'').replace(/[^\d+]/g,'');
 const visits=s.visits.filter(v=>v.customer_id===c.id);
 const comments=s.comments.filter(v=>v.customer_id===c.id);
 return '<article class="card"><div class="row between"><h3>'+E(c.name)+'</h3><span class="pill '+(c.opened?'green':'orange')+'">'+(c.opened?'Aberto':'Por abrir')+'</span></div>'
