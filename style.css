@@ -62,3 +62,14 @@
 [data-theme="dark"] #toast{background:#334967;color:#fff}
 [data-theme="dark"] .green{color:#59d6ab}
 [data-theme="dark"] .orange{color:#ffa56c}
+
+/* Cliente: faturação, comercial interno e detalhes de morada */
+.client-billing{display:flex;align-items:center;flex-wrap:wrap;column-gap:12px;row-gap:6px;margin:6px 0}
+.client-billing>b{font-size:20px;white-space:nowrap}
+.commercial-tag{font-size:13px;color:#53647a;background:#edf3fb;padding:7px 10px;border-radius:9px;overflow-wrap:anywhere}
+.commercial-tag strong{color:#243650}
+.address-detail{background:#f4f7fb;border:1px solid #e1e7f0;padding:14px 16px;border-radius:12px;white-space:normal;overflow-wrap:anywhere}
+.address-detail p{line-height:1.55;margin:6px 0}
+[data-theme="dark"] .commercial-tag{background:#263954;color:#adc5df}
+[data-theme="dark"] .commercial-tag strong{color:#f0f6ff}
+[data-theme="dark"] .address-detail{background:#101b2c;border-color:#344963}
