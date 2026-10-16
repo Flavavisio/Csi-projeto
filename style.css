@@ -26,3 +26,39 @@
 .visit-export p{margin:0}
 @media(max-width:920px){.indicators{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:650px){.indicators{grid-template-columns:repeat(2,minmax(0,1fr))}.visit-export .row{align-items:flex-start}.visit-export .btn{flex:1;white-space:normal}}
+
+/* CSI Campo — tema escuro e comutador dia/noite */
+:root{color-scheme:light}
+.theme-toggle{min-width:44px;min-height:42px;font-size:19px;line-height:1;display:inline-grid;place-items:center}
+[data-theme="dark"]{color-scheme:dark}
+[data-theme="dark"] body{background:#0e1727;color:#e9f0fc}
+[data-theme="dark"] header{background:#141f32;border-color:#314259}
+[data-theme="dark"] .card,
+[data-theme="dark"] .tile,
+[data-theme="dark"] .modal{background:#172338;border-color:#31425b;color:#e9f0fc;box-shadow:0 8px 25px #00000025}
+[data-theme="dark"] .btn{background:#23334c;border-color:#40516c;color:#e9f0fc}
+[data-theme="dark"] .btn.primary,
+[data-theme="dark"] .primary{background:#466df5;border-color:#466df5;color:#fff}
+[data-theme="dark"] .btn:hover,
+[data-theme="dark"] .tile:hover{border-color:#7b9bf9}
+[data-theme="dark"] .field,
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea{background:#101b2c;border-color:#3c4b63;color:#e9f0fc}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder{color:#9aa9be}
+[data-theme="dark"] label{color:#b3c1d5}
+[data-theme="dark"] .muted,
+[data-theme="dark"] small.muted{color:#a9b7ca}
+[data-theme="dark"] .pill{background:#2a3b56;color:#e0eafb}
+[data-theme="dark"] .note{background:#22385b;color:#d3e2ff}
+[data-theme="dark"] .match-option{background:#172338;color:#e9f0fc;border-color:#35465f}
+[data-theme="dark"] .match-option:hover,
+[data-theme="dark"] .match-option:focus-visible{background:#263b5e}
+[data-theme="dark"] .match-option small{color:#adbbce}
+[data-theme="dark"] .activity-entry{border-color:#35465f}
+[data-theme="dark"] .chart{background:#2a3b56}
+[data-theme="dark"] .mask{background:#050c19bb}
+[data-theme="dark"] #toast{background:#334967;color:#fff}
+[data-theme="dark"] .green{color:#59d6ab}
+[data-theme="dark"] .orange{color:#ffa56c}
