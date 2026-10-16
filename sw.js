@@ -1,5 +1,5 @@
 /* CSI Campo PWA — apenas ficheiros públicos da interface; nunca armazenar clientes, sessões ou pedidos Supabase. */
-const CACHE='csi-campo-shell-v9';
+const CACHE='csi-campo-shell-v10';
 const SHELL=['./','./index.html','./style.css','./app.js','./manifest.webmanifest','./icons/csi-icon.svg','./icons/csi-192.png','./icons/csi-512.png','./offline.html'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(Promise.all([caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('csi-campo-')&&k!==CACHE).map(k=>caches.delete(k)))),self.clients.claim()]))});
