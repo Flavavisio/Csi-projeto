@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "CSI Campo — Pesquisa de Campo",
+  "short_name": "CSI Campo",
+  "description": "Consulta de clientes, visitas e incidências no terreno.",
+  "lang": "pt-PT",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#f4f6fa",
+  "theme_color": "#16223a",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "./icons/csi-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
