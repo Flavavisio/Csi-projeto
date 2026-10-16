@@ -16,3 +16,13 @@
 #incidentselected{font-size:12px;margin:4px 0 16px}
 .modal textarea{resize:vertical;min-height:100px}
 @media(max-width:700px){.actions{grid-template-columns:repeat(2,minmax(0,1fr))}.match-option{align-items:flex-start;flex-direction:column;gap:3px}}
+
+/* Indicadores de clientes e exportações pessoais */
+.indicators{grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}
+.indicators .tile{min-height:105px}
+.indicators .tile small{line-height:1.4}
+.visit-export{margin:15px 0 24px}
+.visit-export h2{margin:0 0 5px}
+.visit-export p{margin:0}
+@media(max-width:920px){.indicators{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){.indicators{grid-template-columns:repeat(2,minmax(0,1fr))}.visit-export .row{align-items:flex-start}.visit-export .btn{flex:1;white-space:normal}}
