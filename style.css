@@ -113,3 +113,25 @@
 [data-theme="dark"] .import-summary>div{background:#24344d;border-color:#3a4c66}
 [data-theme="dark"] .import-summary small{color:#b8c8db}
 @media(max-width:410px){.import-summary>div{padding:10px}.import-summary b{font-size:22px}}
+
+/* Planeamento de rotas de visitas */
+.route-panel{margin:13px 0;padding:18px}
+.route-panel h2{margin:0 0 4px}
+.route-panel>label{margin-top:12px}
+.route-panel .field{margin:5px 0 9px}
+.route-stops{padding:0;margin:9px 0 15px;list-style:none;counter-reset:route}
+.route-stops li{display:flex;align-items:center;gap:12px;border-bottom:1px solid #e7ecf3;padding:10px 0;counter-increment:route}
+.route-stops li:before{content:counter(route);background:#315ddd;color:white;border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font-size:13px;font-weight:800;flex:none}
+.route-stops li>div:first-child{flex:1;min-width:0}
+.route-stops li b{font-size:13px;display:block;overflow-wrap:anywhere}
+.route-stops li small{display:block;font-size:12px;color:#697b90;overflow-wrap:anywhere;margin-top:4px}
+.route-stop-actions,.map-client-buttons{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.route-stop-actions .btn{padding:5px 9px;min-height:33px}
+.map-client-buttons .btn{padding:7px 9px}
+.route-added{border-color:#3fa47b;color:#147752}
+.route-buttons{margin-top:13px}
+.route-warning{font-size:12px;margin-top:12px;line-height:1.5}
+[data-theme="dark"] .route-stops li{border-color:#35465f}
+[data-theme="dark"] .route-stops li small{color:#abc0d6}
+[data-theme="dark"] .route-added{color:#65d9ae;border-color:#389774}
+@media(max-width:650px){.route-panel{padding:12px}.route-stops li{gap:8px}.route-stop-actions .btn{padding:6px 8px}.map-client{align-items:flex-start;flex-direction:column}.map-client-buttons{width:100%}.map-client-buttons .btn{flex:1}.route-buttons .btn{flex:1}}
