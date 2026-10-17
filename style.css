@@ -104,3 +104,12 @@
 [data-theme="dark"] .map-client small,[data-theme="dark"] .map-result-count{color:#adc0d6}
 @media(max-width:800px){.map-layout{grid-template-columns:1fr}.map-list{margin-top:0}#csi-map{height:420px}#mapresults{max-height:520px}}
 @media(max-width:550px){.map-filters{grid-template-columns:1fr 1fr}.map-filters>div:first-child{grid-column:1/-1}.map-surface{padding:6px}#csi-map{height:360px}.map-list{padding:13px}}
+
+/* Importação segura: pré-visualização e cópia de segurança */
+.import-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:15px 0}
+.import-summary>div{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:13px;border:1px solid #e4e9f0;background:#f5f8fc;border-radius:12px}
+.import-summary b{font-size:26px;line-height:1.15;font-variant-numeric:tabular-nums}
+.import-summary small{font-size:12px;line-height:1.35;color:#65748a}
+[data-theme="dark"] .import-summary>div{background:#24344d;border-color:#3a4c66}
+[data-theme="dark"] .import-summary small{color:#b8c8db}
+@media(max-width:410px){.import-summary>div{padding:10px}.import-summary b{font-size:22px}}
