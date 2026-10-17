@@ -135,3 +135,12 @@
 [data-theme="dark"] .route-stops li small{color:#abc0d6}
 [data-theme="dark"] .route-added{color:#65d9ae;border-color:#389774}
 @media(max-width:650px){.route-panel{padding:12px}.route-stops li{gap:8px}.route-stop-actions .btn{padding:6px 8px}.map-client{align-items:flex-start;flex-direction:column}.map-client-buttons{width:100%}.map-client-buttons .btn{flex:1}.route-buttons .btn{flex:1}}
+
+/* Mapa v16: todos os filtros combináveis */
+.map-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;align-items:end}
+.map-filters>div{min-width:0}
+.map-filters .field{width:100%;min-width:0}
+.map-filter-actions{display:flex;align-items:end}
+.map-filter-actions .btn{min-height:44px;width:100%}
+@media(max-width:780px){.map-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.map-filters>div:first-child{grid-column:1/-1}}
+@media(max-width:420px){.map-filters{gap:8px}.map-filters label{font-size:11px}.map-filters .field{font-size:13px;padding:10px 7px}.map-filter-actions{grid-column:1/-1}}
