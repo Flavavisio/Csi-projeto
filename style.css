@@ -144,3 +144,10 @@
 .map-filter-actions .btn{min-height:44px;width:100%}
 @media(max-width:780px){.map-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.map-filters>div:first-child{grid-column:1/-1}}
 @media(max-width:420px){.map-filters{gap:8px}.map-filters label{font-size:11px}.map-filters .field{font-size:13px;padding:10px 7px}.map-filter-actions{grid-column:1/-1}}
+
+/* Lista progressiva no Mapa de Clientes */
+.map-load-more{display:block;width:100%;margin:16px auto 5px;padding:12px 14px;font-weight:700}
+.map-located{color:#16855c!important;font-weight:700}
+.map-unlocated{color:#aa5a29!important;font-weight:700}
+[data-theme='dark'] .map-located{color:#6ee2a5!important}
+[data-theme='dark'] .map-unlocated{color:#ffc58f!important}
