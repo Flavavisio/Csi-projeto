@@ -158,3 +158,12 @@
 #csi-build{font-size:11px;white-space:nowrap}
 @keyframes csi-update-pulse{50%{box-shadow:0 0 0 4px rgba(22,163,74,.18)}}
 @media(max-width:700px){header .row{flex-wrap:wrap}header .csi-update-btn{order:-2;flex:1 1 100%;padding:12px;font-size:13px}header #csi-build{font-size:10px}header .btn[data-act="csicheck"]{font-size:12px}}
+
+/* Mapa de Clientes: paginação fixa de 40 e escolha de mapa */
+.map-page-nav{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.map-page-nav .btn[data-act="mapprev"],.map-page-nav .btn[data-act="mapnext"]{min-width:39px;min-height:39px;font-size:19px;font-weight:800;padding:6px 11px}
+.map-page-nav .btn:disabled{opacity:.35;cursor:not-allowed}
+.map-layer-picker{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 1px 11px}
+.map-layer-picker label{font-size:12px;font-weight:700;white-space:nowrap}
+.map-layer-picker .field{min-width:0;max-width:270px;margin:0}
+@media(max-width:520px){.map-list>.row{align-items:flex-start;gap:9px}.map-page-nav{gap:5px}.map-page-nav .btn{font-size:12px}.map-layer-picker{align-items:stretch;flex-direction:column}.map-layer-picker .field{max-width:none}}
