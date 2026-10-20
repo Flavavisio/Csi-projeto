@@ -151,3 +151,10 @@
 .map-unlocated{color:#aa5a29!important;font-weight:700}
 [data-theme='dark'] .map-located{color:#6ee2a5!important}
 [data-theme='dark'] .map-unlocated{color:#ffc58f!important}
+
+/* Atualização da aplicação: aviso inequívoco e botão de confirmação */
+.csi-update-btn{background:#166534!important;color:#fff!important;border:1px solid #16a34a!important;font-weight:800!important;animation:csi-update-pulse 1.9s ease-in-out infinite}
+.csi-update-btn.hide{display:none!important}
+#csi-build{font-size:11px;white-space:nowrap}
+@keyframes csi-update-pulse{50%{box-shadow:0 0 0 4px rgba(22,163,74,.18)}}
+@media(max-width:700px){header .row{flex-wrap:wrap}header .csi-update-btn{order:-2;flex:1 1 100%;padding:12px;font-size:13px}header #csi-build{font-size:10px}header .btn[data-act="csicheck"]{font-size:12px}}
