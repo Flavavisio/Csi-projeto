@@ -10,7 +10,7 @@ let currentTheme=loadTheme();
 function applyTheme(){document.documentElement.setAttribute('data-theme',currentTheme);document.documentElement.style.colorScheme=currentTheme==='dark'?'dark':'light';const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=currentTheme==='dark'?'#111827':'#16223a'}
 function toggleTheme(){currentTheme=currentTheme==='dark'?'light':'dark';try{localStorage.setItem('csi-campo-theme',currentTheme)}catch{}applyTheme();render()}
 applyTheme();
-const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'30');
+const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'31');
 let csiNextBuild=null,csiCheckInProgress=false;
 function csiShowUpdate(next){if(!next||next===CSI_CURRENT_BUILD)return;csiNextBuild=next;const button=el('csi-update');if(button){button.classList.remove('hide');button.textContent='↻ Nova versão disponível — Atualizar app'}const version=el('csi-build');if(version)version.textContent='Nova versão disponível'}
 async function csiCheckForUpdate(manual=false){
@@ -85,7 +85,7 @@ function admin(){return '<button class="btn" data-act="page" data-page="home">�
 
 /* Mapa: a localização só é pedida ao serviço externo após ação do utilizador. */
 let mapInstance=null,mapMarkers=new Map(),mapLibraryPromise=null,mapBusy=false,mapLastQuery=0;
-let mapTiles=null,mapCluster=null,bulkMapBusy=false,bulkMapStop=false;
+let mapTiles=null,mapCluster=null,bulkMapBusy=false,bulkMapStop=false,officialImportBusy=false,officialAutoAttempt=false;
 function mapLayerConfig(){
  if(s.mapBase==='satellite')return {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',opts:{maxZoom:19,attribution:'Tiles © Esri and contributors'}};
  if(s.mapBase==='topo')return {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',opts:{maxZoom:19,attribution:'Tiles © Esri and contributors'}};
@@ -181,13 +181,36 @@ function suggestionPanel(){
  +(clients.length?'<div class="smart-results">'+clients.map(c=>{const details=smartVisitScore(c);return '<div class="map-client"><div><b>'+E(c.name)+'</b><small>'+E([c.municipality,c.district].filter(Boolean).join(' · '))+'</small><small>'+E(details.reasons.join(' · '))+'</small></div><div class="map-client-buttons"><button class="btn" data-act="routeadd" data-id="'+c.id+'" '+(s.routeIds.includes(c.id)?'disabled':'')+'>'+(s.routeIds.includes(c.id)?'✓ Na rota':'+ Rota')+'</button><button class="btn" data-act="maplocate" data-id="'+c.id+'">⌖ Mapa</button></div></div>'}).join('')+'</div>':'')+'</section>';
 }
 function refreshSuggestions(){const panel=el('suggestpanel');if(panel)panel.innerHTML=suggestionPanel()}
+async function importOfficialPostcodes(){
+ if(officialImportBusy)return;
+ officialImportBusy=true;
+ const node=el('official-map-status');if(node)node.textContent='A cruzar os códigos postais com a base oficial. Não feches a aplicação.';
+ const action=el('official-map-import');if(action)action.disabled=true;
+ try{
+  const {data:{session}}=await db.auth.getSession();
+  if(!session)throw Error('Tens de iniciar sessão para importar coordenadas');
+  const response=await fetch(host+'/functions/v1/csi-import-postcode-map',{
+   method:'POST',headers:{Authorization:'Bearer '+session.access_token,apikey:key,'Content-Type':'application/json'},
+   body:'{}'
+  });
+  let result;try{result=await response.json()}catch{throw Error('Resposta inesperada do serviço de importação')}
+  if(!response.ok)throw Error(result.error||'A importação falhou: HTTP '+response.status);
+  await loadSavedLocations();
+  if(mapInstance){if(mapCluster)mapCluster.clearLayers();mapMarkers.clear();for(const loc of s.mapLocated){const c=s.clients.find(x=>x.id===loc.id);if(c)addCustomerMarker(c,loc.lat,loc.lon)}syncVisibleMapMarkers()}
+  refreshMapListing();
+  const message='Importação concluída: '+result.imported+' novas localizações, '+result.already+' previamente guardadas. '+Math.max(0,result.unmatched||0)+' sem correspondência.';
+  flash(message);
+  const panel=el('auto-location-panel');if(panel)panel.innerHTML=autoLocationPanel();
+ }catch(e){const status=el('official-map-status');if(status)status.textContent='Importação não concluída: '+e.message;flash('Importação oficial: '+e.message)}
+ finally{officialImportBusy=false;const action=el('official-map-import');if(action)action.disabled=false}
+}
 function autoLocationPanel(){
  const eligible=s.clients.filter(c=>customerPostalCode(c));
  const saved=new Set(s.mapLocated.map(p=>p.id));
  const pending=eligible.filter(c=>!saved.has(c.id));
  return '<section class="card auto-map"><div class="row between"><div><h2>Localização automática por código postal</h2><p class="muted">Aproximação pelo centro do código postal. Não representa a entrada exata da empresa.</p></div><b>'+saved.size+' / '+s.clients.length+' localizados</b></div>'
  +'<p class="muted">'+pending.length+' clientes com código postal por localizar · '+(s.clients.length-eligible.length)+' sem código postal válido.</p>'
- +'<div class="row"><button class="btn primary" data-act="mapautolocate" '+(bulkMapBusy||!pending.length?'disabled':'')+'>⌖ Localizar automaticamente (até 50)</button><button class="btn" data-act="mapautostop" '+(!bulkMapBusy?'disabled':'')+'>Parar</button><span id="auto-map-status" class="muted">'+(bulkMapBusy?'A processar...':'A localização é iniciada manualmente e fica guardada para todos os utilizadores autorizados.')+'</span></div></section>';
+ +(s.admin?'<div class="row"><button class="btn primary" id="official-map-import" data-act="mapofficial" '+(officialImportBusy?'disabled':'')+'>↻ Completar mapa com dados oficiais</button><small id="official-map-status" class="muted">Eurostat GISCO 2025 — localização aproximada por código postal.</small></div>':'')+'<div class="row"><button class="btn primary" data-act="mapautolocate" '+(bulkMapBusy||!pending.length?'disabled':'')+'>⌖ Localizar automaticamente (até 50)</button><button class="btn" data-act="mapautostop" '+(!bulkMapBusy?'disabled':'')+'>Parar</button><span id="auto-map-status" class="muted">'+(bulkMapBusy?'A processar...':'A localização é iniciada manualmente e fica guardada para todos os utilizadores autorizados.')+'</span></div></section>';
 }
 async function bulkLocatePostcodes(){
  if(bulkMapBusy)return;
@@ -284,7 +307,7 @@ function ensureCluster(){
  }).catch(e=>{window.csiClusterLoading=null;throw e});return window.csiClusterLoading;
 }
 function ensureLeaflet(){if(window.L)return Promise.resolve(window.L);if(mapLibraryPromise)return mapLibraryPromise;mapLibraryPromise=new Promise((resolve,reject)=>{if(!document.querySelector('link[data-leaflet]')){let css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.dataset.leaflet='';document.head.appendChild(css)}let script=document.createElement('script');script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.onload=()=>resolve(window.L);script.onerror=()=>reject(new Error('Não foi possível carregar o mapa. Confirma a ligação à Internet.'));document.head.appendChild(script)}).catch(e=>{mapLibraryPromise=null;throw e});return mapLibraryPromise}
-async function initCustomerMap(){if(!el('csi-map'))return;try{const L=await ensureLeaflet();await ensureCluster();if(!el('csi-map')||s.page!=='map'||mapInstance)return;mapInstance=L.map('csi-map',{scrollWheelZoom:false}).setView([39.55,-8.00],7);setMapBase();mapCluster=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:55});mapInstance.addLayer(mapCluster);for(const located of s.mapLocated){const c=s.clients.find(x=>x.id===located.id);if(!c)continue;addCustomerMarker(c,located.lat,located.lon)}syncVisibleMapMarkers()}catch(e){const node=el('csi-map');if(node)node.textContent=e.message}}
+async function initCustomerMap(){if(!el('csi-map'))return;try{const L=await ensureLeaflet();await ensureCluster();if(!el('csi-map')||s.page!=='map'||mapInstance)return;mapInstance=L.map('csi-map',{scrollWheelZoom:false}).setView([39.55,-8.00],7);setMapBase();mapCluster=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:55});mapInstance.addLayer(mapCluster);for(const located of s.mapLocated){const c=s.clients.find(x=>x.id===located.id);if(!c)continue;addCustomerMarker(c,located.lat,located.lon)}syncVisibleMapMarkers();if(s.admin&&!officialAutoAttempt&&s.mapLocated.length<s.clients.length){officialAutoAttempt=true;queueMicrotask(()=>importOfficialPostcodes())}}catch(e){const node=el('csi-map');if(node)node.textContent=e.message}}
 function geocodingQueries(c){
  // Não repetir o código postal nem distrito quando já estão dentro do campo morada.
  const raw=String(c.address||'').replace(/\r/g,' ').replace(/\n/g,', ');
@@ -454,7 +477,8 @@ if(f.id==='commentform'){let {error}=await db.from('customer_comments').insert({
 if(f.id==='newincident'){let customerId=el('incidentcustomer').value;if(!customerId||!s.clients.some(c=>c.id===customerId))throw Error('Seleciona um cliente válido');let category=f.category.value;
 if(category==='__new'){let name=val('newcategoryname').trim();if(!name)throw Error('Indica o nome do novo tipo');let existing=s.types.find(t=>t.name.toLocaleLowerCase('pt')===name.toLocaleLowerCase('pt'));if(existing)category=existing.id;else{let {data,error}=await db.from('incident_categories').insert({name,created_by:s.user.id}).select('id').single();if(error)throw error;category=data.id;}}
 let {error}=await db.from('incidents').insert({customer_id:customerId,title:f.title.value.trim(),description:f.description.value.trim(),category_id:category,created_by:s.user.id});if(error)throw error;close();await refresh();flash('Incidência registada')}if(f.id==='newuser'){await userApi({action:'create',email:f.email.value,name:f.fullname.value,password:f.password.value});close();flash('Conta criada')}if(f.id==='resetuser'){await userApi({action:'reset',user_id:f.userid.value,password:f.password.value});close();flash('Password alterada')}}catch(err){flash(err.message)}});
-document.addEventListener('click',async e=>{let b=e.target.closest('[data-act]');if(!b)return;let a=b.dataset.act;try{if(a==='csicheck')await csiCheckForUpdate(true);if(a==='csiupdate')await csiApplyUpdate();if(a==='close')close();if(a==='theme')toggleTheme();if(a==='page'){s.page=b.dataset.page;render()}if(a==='quick'){Object.assign(s,{page:'clients',quick:b.dataset.type,search:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='clear'){Object.assign(s,{search:'',quick:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='more'){s.shown+=30;render()}if(a==='mapautolocate')await bulkLocatePostcodes();
+document.addEventListener('click',async e=>{let b=e.target.closest('[data-act]');if(!b)return;let a=b.dataset.act;try{if(a==='csicheck')await csiCheckForUpdate(true);if(a==='csiupdate')await csiApplyUpdate();if(a==='close')close();if(a==='theme')toggleTheme();if(a==='page'){s.page=b.dataset.page;render()}if(a==='quick'){Object.assign(s,{page:'clients',quick:b.dataset.type,search:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='clear'){Object.assign(s,{search:'',quick:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='more'){s.shown+=30;render()}if(a==='mapofficial')await importOfficialPostcodes();
+if(a==='mapautolocate')await bulkLocatePostcodes();
 if(a==='mapautostop'){bulkMapStop=true;flash('A interromper a localização após o pedido atual.')}
 if(a==='suggestpick'){s.suggestZone=val('suggestzone').trim();s.suggestCount=Number(val('suggestcount'))||5;s.suggestMode=val('suggestmode')||'mixed';pickSmartVisits();refreshSuggestions()}
 if(a==='suggestroute'){for(const id of s.suggestedIds){if(s.routeIds.length>=8)break;if(!s.routeIds.includes(id))changeRoute(id,'add')}refreshSuggestions()}
