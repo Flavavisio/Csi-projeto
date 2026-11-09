@@ -10,7 +10,7 @@ let currentTheme=loadTheme();
 function applyTheme(){document.documentElement.setAttribute('data-theme',currentTheme);document.documentElement.style.colorScheme=currentTheme==='dark'?'dark':'light';const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=currentTheme==='dark'?'#111827':'#16223a'}
 function toggleTheme(){currentTheme=currentTheme==='dark'?'light':'dark';try{localStorage.setItem('csi-campo-theme',currentTheme)}catch{}applyTheme();render()}
 applyTheme();
-const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'28');
+const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'29');
 let csiNextBuild=null,csiCheckInProgress=false;
 function csiShowUpdate(next){if(!next||next===CSI_CURRENT_BUILD)return;csiNextBuild=next;const button=el('csi-update');if(button){button.classList.remove('hide');button.textContent='↻ Nova versão disponível — Atualizar app'}const version=el('csi-build');if(version)version.textContent='Nova versão disponível'}
 async function csiCheckForUpdate(manual=false){
@@ -85,7 +85,7 @@ function admin(){return '<button class="btn" data-act="page" data-page="home">�
 
 /* Mapa: a localização só é pedida ao serviço externo após ação do utilizador. */
 let mapInstance=null,mapMarkers=new Map(),mapLibraryPromise=null,mapBusy=false,mapLastQuery=0;
-let mapTiles=null,mapCluster=null;
+let mapTiles=null,mapCluster=null,bulkMapBusy=false,bulkMapStop=false;
 function mapLayerConfig(){
  if(s.mapBase==='satellite')return {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',opts:{maxZoom:19,attribution:'Tiles © Esri and contributors'}};
  if(s.mapBase==='topo')return {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',opts:{maxZoom:19,attribution:'Tiles © Esri and contributors'}};
@@ -117,16 +117,20 @@ function updateMapFilterUi(){
  s.mapShown=40;s.mapOffset=0;refreshMapListing();
 }
 
+function customerPostalCode(c){
+ const cp=String(c.postal_code||'').match(/\b(\d{4})[\s-]?(\d{3})\b/)||String(c.address||'').match(/\b(\d{4})[\s-]?(\d{3})\b/);
+ return cp?cp[1]+'-'+cp[2]:'';
+}
 function addressKey(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim().toLocaleLowerCase('pt-PT')).join('|')}
 async function loadSavedLocations(){
  const all=[];
  for(let offset=0;offset<50000;offset+=1000){
-  const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key').range(offset,offset+999);
+  const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key,accuracy').range(offset,offset+999);
   if(error){console.warn('Localizações guardadas indisponíveis',error.message);return}
   all.push(...data);if(data.length<1000)break;
  }
  const indexed=new Map(s.clients.map(c=>[c.id,c]));
- s.mapLocated=all.filter(p=>{const customer=indexed.get(p.customer_id);return customer&&p.address_key===addressKey(customer)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude}));
+ s.mapLocated=all.filter(p=>{const customer=indexed.get(p.customer_id);return customer&&p.address_key===addressKey(customer)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude,source:p.accuracy==='approximate'?'postcode':'manual'}));
 }
 function routeAddress(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim()).filter(Boolean).join(', ')}
 function routeStops(){return s.routeIds.map(id=>s.clients.find(c=>c.id===id)).filter(Boolean)}
@@ -172,6 +176,51 @@ function suggestionPanel(){
  +(clients.length?'<div class="smart-results">'+clients.map(c=>{const details=smartVisitScore(c);return '<div class="map-client"><div><b>'+E(c.name)+'</b><small>'+E([c.municipality,c.district].filter(Boolean).join(' · '))+'</small><small>'+E(details.reasons.join(' · '))+'</small></div><div class="map-client-buttons"><button class="btn" data-act="routeadd" data-id="'+c.id+'" '+(s.routeIds.includes(c.id)?'disabled':'')+'>'+(s.routeIds.includes(c.id)?'✓ Na rota':'+ Rota')+'</button><button class="btn" data-act="maplocate" data-id="'+c.id+'">⌖ Mapa</button></div></div>'}).join('')+'</div>':'')+'</section>';
 }
 function refreshSuggestions(){const panel=el('suggestpanel');if(panel)panel.innerHTML=suggestionPanel()}
+function autoLocationPanel(){
+ const eligible=s.clients.filter(c=>customerPostalCode(c));
+ const saved=new Set(s.mapLocated.map(p=>p.id));
+ const pending=eligible.filter(c=>!saved.has(c.id));
+ return '<section class="card auto-map"><div class="row between"><div><h2>Localização automática por código postal</h2><p class="muted">Aproximação pelo centro do código postal. Não representa a entrada exata da empresa.</p></div><b>'+saved.size+' / '+s.clients.length+' localizados</b></div>'
+ +'<p class="muted">'+pending.length+' clientes com código postal por localizar · '+(s.clients.length-eligible.length)+' sem código postal válido.</p>'
+ +'<div class="row"><button class="btn primary" data-act="mapautolocate" '+(bulkMapBusy||!pending.length?'disabled':'')+'>⌖ Localizar automaticamente (até 50)</button><button class="btn" data-act="mapautostop" '+(!bulkMapBusy?'disabled':'')+'>Parar</button><span id="auto-map-status" class="muted">'+(bulkMapBusy?'A processar...':'A localização é iniciada manualmente e fica guardada para todos os utilizadores autorizados.')+'</span></div></section>';
+}
+async function bulkLocatePostcodes(){
+ if(bulkMapBusy)return;
+ bulkMapBusy=true;bulkMapStop=false;const button=document.querySelector('[data-act="mapautolocate"]');if(button)button.disabled=true;
+ const existing=new Map(s.mapLocated.map(p=>[p.id,p]));
+ const pending=s.clients.filter(c=>!existing.has(c.id)&&customerPostalCode(c)).slice(0,50);
+ const postals=new Map();
+ for(const p of s.mapLocated){const c=s.clients.find(x=>x.id===p.id),cp=c&&customerPostalCode(c);if(cp&&p.source==='postcode')postals.set(cp,{lat:p.lat,lon:p.lon});}
+ let done=0,failed=0;const unavailable=new Set(),progress=()=>{const n=el('auto-map-status');if(n)n.textContent='Localizados '+done+' de '+pending.length+' · Sem correspondência '+failed};
+ try{
+  for(const c of pending){
+   if(bulkMapStop||s.page!=='map')break;
+   const cp=customerPostalCode(c);let pos=postals.get(cp);
+   if(!pos&&!unavailable.has(cp)){
+    try{
+     const response=await fetch('https://json.geoapi.pt/codigo_postal/'+encodeURIComponent(cp),{headers:{Accept:'application/json'}});
+     if(!response.ok)throw Error('Serviço postal: HTTP '+response.status);
+     const data=await response.json(),center=data.centro||data.centroide;
+     if(!Array.isArray(center)||center.length<2)throw Error('Sem centro geográfico válido');
+     const lat=Number(center[0]),lon=Number(center[1]);
+     if(!(lat>32&&lat<43&&lon>-32&&lon<0))throw Error('Coordenadas fora de Portugal');
+     pos={lat,lon};postals.set(cp,pos);
+    }catch(err){unavailable.add(cp);console.warn('Código postal não localizado',cp,err.message)}
+    await new Promise(r=>setTimeout(r,400));
+   }
+   if(!pos){failed++;progress();continue}
+   const {error}=await db.from('customer_locations').upsert({customer_id:c.id,latitude:pos.lat,longitude:pos.lon,address_key:addressKey(c),accuracy:'approximate',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});
+   if(error){failed++;console.warn('Falhou guardar localização',error.message);progress();continue}
+   const p={id:c.id,lat:pos.lat,lon:pos.lon,source:'postcode'};s.mapLocated.push(p);existing.set(c.id,p);
+   if(mapInstance)addCustomerMarker(c,pos.lat,pos.lon);
+   done++;progress();
+  }
+ }finally{
+  bulkMapBusy=false;bulkMapStop=false;refreshMapListing();
+  const panel=el('auto-location-panel');if(panel)panel.innerHTML=autoLocationPanel();
+  flash('Localização automática: '+done+' clientes guardados, '+failed+' por localizar. Os pontos são aproximados.');
+ }
+}
 function mapResults(){
  const rows=mapMatches(),maxOffset=Math.max(0,Math.ceil(rows.length/40)-1)*40;
  s.mapOffset=Math.min(s.mapOffset,maxOffset);
@@ -194,7 +243,7 @@ function mapPage(){
  +'<div><label>Visita</label>'+select('mapvisited',[['all','Todos'],['yes','Visitado'],['no','Não visitado']],s.mapVisited)+'</div>'
  +'<div><label>Localização no mapa</label>'+select('maplocation',[['all','Todos os clientes'],['located','Com coordenadas'],['missing','Por localizar']],s.mapLocation)+'</div>'
  +'<div class="map-filter-actions"><button class="btn" data-act="mapreset">Limpar filtros</button></div></div>'
- +'<div id="suggestpanel">'+suggestionPanel()+'</div><div id="routepanel">'+routePanel()+'</div><div class="map-layout"><div class="card map-surface"><div class="map-layer-picker"><label for="mapbase">Tipo de mapa</label>'+select('mapbase',[['streets','Ruas (OpenStreetMap)'],['topo','Ruas detalhadas (Esri)'],['satellite','Satélite (Esri)']],s.mapBase)+'</div><div id="csi-map" aria-label="Mapa interativo de clientes"></div><p class="muted map-attribution">Mapa © OpenStreetMap. Pontos obtidos por geocodificação; confirma a morada antes de viajar.</p></div><div class="card map-list"><div class="row between"><h2>Clientes</h2><div class="map-page-nav"><button class="btn" data-act="mapprev" aria-label="40 clientes anteriores" title="40 clientes anteriores" '+(s.mapOffset===0?'disabled':'')+'>←</button><button class="btn" data-act="mapnext" aria-label="40 clientes seguintes" title="40 clientes seguintes" '+(s.mapOffset+40>=mapMatches().length?'disabled':'')+'>→</button><button class="btn" data-act="mapclear">Ocultar pontos</button></div></div><div id="mapresults">'+mapResults()+'</div></div></div>';
+ +'<div id="auto-location-panel">'+autoLocationPanel()+'</div><div id="suggestpanel">'+suggestionPanel()+'</div><div id="routepanel">'+routePanel()+'</div><div class="map-layout"><div class="card map-surface"><div class="map-layer-picker"><label for="mapbase">Tipo de mapa</label>'+select('mapbase',[['streets','Ruas (OpenStreetMap)'],['topo','Ruas detalhadas (Esri)'],['satellite','Satélite (Esri)']],s.mapBase)+'</div><div id="csi-map" aria-label="Mapa interativo de clientes"></div><p class="muted map-attribution">Mapa © OpenStreetMap. Pontos obtidos por geocodificação; confirma a morada antes de viajar.</p></div><div class="card map-list"><div class="row between"><h2>Clientes</h2><div class="map-page-nav"><button class="btn" data-act="mapprev" aria-label="40 clientes anteriores" title="40 clientes anteriores" '+(s.mapOffset===0?'disabled':'')+'>←</button><button class="btn" data-act="mapnext" aria-label="40 clientes seguintes" title="40 clientes seguintes" '+(s.mapOffset+40>=mapMatches().length?'disabled':'')+'>→</button><button class="btn" data-act="mapclear">Ocultar pontos</button></div></div><div id="mapresults">'+mapResults()+'</div></div></div>';
 }
 
 function changeRoute(id,action){const c=s.clients.find(x=>x.id===id);if(!c)return;if(action==='add'){if(s.routeIds.includes(id))return;if(s.routeIds.length>=8){flash('Máximo de 8 clientes por roteiro.');return}if(!routeAddress(c)){flash('Preenche primeiro a morada do cliente.');return}s.routeIds.push(id)}else if(action==='remove'){s.routeIds=s.routeIds.filter(x=>x!==id)}else{let index=s.routeIds.indexOf(id),target=index+(action==='up'?-1:1);if(index<0||target<0||target>=s.routeIds.length)return;[s.routeIds[index],s.routeIds[target]]=[s.routeIds[target],s.routeIds[index]]}refreshRoute()}
@@ -400,7 +449,9 @@ if(f.id==='commentform'){let {error}=await db.from('customer_comments').insert({
 if(f.id==='newincident'){let customerId=el('incidentcustomer').value;if(!customerId||!s.clients.some(c=>c.id===customerId))throw Error('Seleciona um cliente válido');let category=f.category.value;
 if(category==='__new'){let name=val('newcategoryname').trim();if(!name)throw Error('Indica o nome do novo tipo');let existing=s.types.find(t=>t.name.toLocaleLowerCase('pt')===name.toLocaleLowerCase('pt'));if(existing)category=existing.id;else{let {data,error}=await db.from('incident_categories').insert({name,created_by:s.user.id}).select('id').single();if(error)throw error;category=data.id;}}
 let {error}=await db.from('incidents').insert({customer_id:customerId,title:f.title.value.trim(),description:f.description.value.trim(),category_id:category,created_by:s.user.id});if(error)throw error;close();await refresh();flash('Incidência registada')}if(f.id==='newuser'){await userApi({action:'create',email:f.email.value,name:f.fullname.value,password:f.password.value});close();flash('Conta criada')}if(f.id==='resetuser'){await userApi({action:'reset',user_id:f.userid.value,password:f.password.value});close();flash('Password alterada')}}catch(err){flash(err.message)}});
-document.addEventListener('click',async e=>{let b=e.target.closest('[data-act]');if(!b)return;let a=b.dataset.act;try{if(a==='csicheck')await csiCheckForUpdate(true);if(a==='csiupdate')await csiApplyUpdate();if(a==='close')close();if(a==='theme')toggleTheme();if(a==='page'){s.page=b.dataset.page;render()}if(a==='quick'){Object.assign(s,{page:'clients',quick:b.dataset.type,search:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='clear'){Object.assign(s,{search:'',quick:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='more'){s.shown+=30;render()}if(a==='suggestpick'){s.suggestZone=val('suggestzone').trim();s.suggestCount=Number(val('suggestcount'))||5;s.suggestMode=val('suggestmode')||'mixed';pickSmartVisits();refreshSuggestions()}
+document.addEventListener('click',async e=>{let b=e.target.closest('[data-act]');if(!b)return;let a=b.dataset.act;try{if(a==='csicheck')await csiCheckForUpdate(true);if(a==='csiupdate')await csiApplyUpdate();if(a==='close')close();if(a==='theme')toggleTheme();if(a==='page'){s.page=b.dataset.page;render()}if(a==='quick'){Object.assign(s,{page:'clients',quick:b.dataset.type,search:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='clear'){Object.assign(s,{search:'',quick:'',district:'',municipality:'',parish:'',billing:'all',opened:'all',registered:'all',visited:'all'});render()}if(a==='more'){s.shown+=30;render()}if(a==='mapautolocate')await bulkLocatePostcodes();
+if(a==='mapautostop'){bulkMapStop=true;flash('A interromper a localização após o pedido atual.')}
+if(a==='suggestpick'){s.suggestZone=val('suggestzone').trim();s.suggestCount=Number(val('suggestcount'))||5;s.suggestMode=val('suggestmode')||'mixed';pickSmartVisits();refreshSuggestions()}
 if(a==='suggestroute'){for(const id of s.suggestedIds){if(s.routeIds.length>=8)break;if(!s.routeIds.includes(id))changeRoute(id,'add')}refreshSuggestions()}
 if(a==='routeadd')changeRoute(b.dataset.id,'add');if(a==='routeremove')changeRoute(b.dataset.id,'remove');if(a==='routeup')changeRoute(b.dataset.id,'up');if(a==='routedown')changeRoute(b.dataset.id,'down');if(a==='routeclear'){s.routeIds=[];refreshRoute()}if(a==='routeopen')openRoute();if(a==='routewaze')openWazeNextStop();if(a==='routewazestop')openWazeForCustomer(b.dataset.id);if(a==='routecsv')routeCsv();if(a==='mapreset'){s.suggestedIds=[];Object.assign(s,{mapSearch:'',mapDistrict:'',mapMunicipality:'',mapParish:'',mapBilling:'all',mapOpened:'all',mapRegistered:'all',mapVisited:'all',mapLocation:'all'});for(const [id,value] of Object.entries({mapsearch:'',mapdistrict:'',mapmunicipality:'',mapparish:'',mapbilling:'all',mapopened:'all',mapregistered:'all',mapvisited:'all',maplocation:'all'})){let n=el(id);if(n)n.value=value}updateMapFilterUi()}if(a==='mapprev'){s.mapOffset=Math.max(0,s.mapOffset-40);refreshMapListing()}if(a==='mapnext'){s.mapOffset=Math.min(Math.max(0,Math.ceil(mapMatches().length/40)-1)*40,s.mapOffset+40);refreshMapListing()}if(a==='maplocate')await locateCustomerOnMap(b.dataset.id);if(a==='mapclear')clearMap();if(a==='visitscsv')exportMyVisits(b.dataset.period==='month'?'month':'week');if(a==='logout'){await db.auth.signOut();s.user=null;render()}if(a==='password')pop('<h2>Alterar password</h2><form id="password"><input class="field" type="password" name="password" minlength="8" required><button class="btn primary">Guardar</button></form>');if(a==='forgot'){pop('<h2>Recuperar palavra-passe</h2><input class="field" type="email" id="resetemail" placeholder="Email"><button class="btn primary" id="sendemail">Enviar</button>');el('sendemail').onclick=async()=>{let {error}=await db.auth.resetPasswordForEmail(val('resetemail'),{redirectTo:location.href.split('#')[0]});flash(error?error.message:'Confirma o email');if(!error)close()}}if(a==='call'){const client=s.clients.find(c=>c.id===b.dataset.id);if(!client)return;let numbers=[client.phone,client.phone2].map(x=>String(x||'').trim()).filter(Boolean);if(numbers.length===0){flash('Este cliente não tem telefone registado');return;}if(numbers.length===1){location.href='tel:'+numbers[0].replace(/[^0-9+]/g,'');return;}pop('<h2>Ligar a '+E(client.name)+'</h2>'+numbers.map(number=>'<p><a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="tel:'+E(number.replace(/[^0-9+]/g,''))+'">☎ '+E(number)+'</a></p>').join(''))}
 if(a==='address'){const c=s.clients.find(c=>c.id===b.dataset.id);if(!c)return;const address=[c.address,c.postal_code,c.parish,c.municipality,c.district].filter(Boolean);const lookup=address.join(', ');pop('<h2>Morada do cliente</h2><p class="muted">'+E(c.name)+'</p><div class="address-detail">'+(c.address?'<p>'+E(c.address).replace(/\\n/g,'<br>')+'</p>':'<p class="muted">Morada completa não registada.</p>')+'<p><b>Código postal:</b> '+E(c.postal_code||'Não indicado')+'</p><p><b>Freguesia:</b> '+E(c.parish||'Não indicada')+'</p><p><b>Concelho:</b> '+E(c.municipality||'Não indicado')+'</p><p><b>Distrito:</b> '+E(c.district||'Não indicado')+'</p></div>'+(lookup?'<a class="btn primary" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;margin-top:12px" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(lookup)+'">Abrir no mapa ↗</a>':'')+(s.user?'<p><button class="btn" data-act="edit" data-id="'+c.id+'">✎ Editar morada</button></p>':''));}
