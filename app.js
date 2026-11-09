@@ -10,7 +10,7 @@ let currentTheme=loadTheme();
 function applyTheme(){document.documentElement.setAttribute('data-theme',currentTheme);document.documentElement.style.colorScheme=currentTheme==='dark'?'dark':'light';const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=currentTheme==='dark'?'#111827':'#16223a'}
 function toggleTheme(){currentTheme=currentTheme==='dark'?'light':'dark';try{localStorage.setItem('csi-campo-theme',currentTheme)}catch{}applyTheme();render()}
 applyTheme();
-const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'29');
+const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'30');
 let csiNextBuild=null,csiCheckInProgress=false;
 function csiShowUpdate(next){if(!next||next===CSI_CURRENT_BUILD)return;csiNextBuild=next;const button=el('csi-update');if(button){button.classList.remove('hide');button.textContent='↻ Nova versão disponível — Atualizar app'}const version=el('csi-build');if(version)version.textContent='Nova versão disponível'}
 async function csiCheckForUpdate(manual=false){
@@ -92,8 +92,13 @@ function mapLayerConfig(){
  return {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',opts:{maxZoom:19,attribution:'© OpenStreetMap contributors'}};
 }
 function setMapBase(){if(!mapInstance||!window.L)return;if(mapTiles)mapInstance.removeLayer(mapTiles);const config=mapLayerConfig();mapTiles=window.L.tileLayer(config.url,config.opts).addTo(mapInstance)}
-function refreshMapListing(){const node=el('mapresults');if(node)node.innerHTML=mapResults();const prev=document.querySelector('[data-act="mapprev"]'),next=document.querySelector('[data-act="mapnext"]');if(prev)prev.disabled=s.mapOffset<=0;if(next)next.disabled=s.mapOffset+40>=mapMatches().length}
+function refreshMapListing(){const node=el('mapresults');if(node)node.innerHTML=mapResults();syncVisibleMapMarkers();const prev=document.querySelector('[data-act="mapprev"]'),next=document.querySelector('[data-act="mapnext"]');if(prev)prev.disabled=s.mapOffset<=0;if(next)next.disabled=s.mapOffset+40>=mapMatches().length}
 
+function syncVisibleMapMarkers(){
+ if(!mapCluster||!mapInstance)return;
+ const visible=new Set(mapMatches().map(c=>c.id));
+ for(const [id,marker] of mapMarkers){const shown=mapCluster.hasLayer(marker);if(visible.has(id)&&!shown)mapCluster.addLayer(marker);else if(!visible.has(id)&&shown)mapCluster.removeLayer(marker)}
+}
 function mapMatches(){const q=s.mapSearch.trim().toLocaleLowerCase('pt');return s.clients.filter(c=>
 districtMatches(c,s.mapDistrict)
 &&(!s.mapMunicipality||c.municipality===s.mapMunicipality)
@@ -199,26 +204,26 @@ async function bulkLocatePostcodes(){
    if(!pos&&!unavailable.has(cp)){
     try{
      const response=await fetch('https://json.geoapi.pt/codigo_postal/'+encodeURIComponent(cp),{headers:{Accept:'application/json'}});
-     if(!response.ok)throw Error('Serviço postal: HTTP '+response.status);
+     if(response.status===429||response.status===503){bulkMapStop=true;throw Error('LIMITED: serviço de localização temporariamente indisponível ('+response.status+')')}if(!response.ok)throw Error('Serviço postal: HTTP '+response.status);
      const data=await response.json(),center=data.centro||data.centroide;
      if(!Array.isArray(center)||center.length<2)throw Error('Sem centro geográfico válido');
      const lat=Number(center[0]),lon=Number(center[1]);
      if(!(lat>32&&lat<43&&lon>-32&&lon<0))throw Error('Coordenadas fora de Portugal');
      pos={lat,lon};postals.set(cp,pos);
-    }catch(err){unavailable.add(cp);console.warn('Código postal não localizado',cp,err.message)}
+    }catch(err){unavailable.add(cp);if(String(err.message).startsWith('LIMITED:')){flash('A API de códigos postais atingiu o limite de pedidos. Processo interrompido; os clientes já localizados ficam guardados.')}console.warn('Código postal não localizado',cp,err.message)}
     await new Promise(r=>setTimeout(r,400));
    }
-   if(!pos){failed++;progress();continue}
+   if(!pos){failed++;progress();if(bulkMapStop)break;continue}
    const {error}=await db.from('customer_locations').upsert({customer_id:c.id,latitude:pos.lat,longitude:pos.lon,address_key:addressKey(c),accuracy:'approximate',location_method:'postcode',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});
    if(error){failed++;console.warn('Falhou guardar localização',error.message);progress();continue}
    const p={id:c.id,lat:pos.lat,lon:pos.lon,source:'postcode'};s.mapLocated.push(p);existing.set(c.id,p);
-   if(mapInstance)addCustomerMarker(c,pos.lat,pos.lon);
+   if(mapInstance){addCustomerMarker(c,pos.lat,pos.lon);syncVisibleMapMarkers();}
    done++;progress();
   }
  }finally{
   bulkMapBusy=false;bulkMapStop=false;refreshMapListing();
   const panel=el('auto-location-panel');if(panel)panel.innerHTML=autoLocationPanel();
-  flash('Localização automática: '+done+' clientes guardados, '+failed+' por localizar. Os pontos são aproximados.');
+  flash('Localização automática: '+done+' clientes guardados, '+failed+' sem correspondência. Posições aproximadas.');
  }
 }
 function mapResults(){
@@ -279,7 +284,7 @@ function ensureCluster(){
  }).catch(e=>{window.csiClusterLoading=null;throw e});return window.csiClusterLoading;
 }
 function ensureLeaflet(){if(window.L)return Promise.resolve(window.L);if(mapLibraryPromise)return mapLibraryPromise;mapLibraryPromise=new Promise((resolve,reject)=>{if(!document.querySelector('link[data-leaflet]')){let css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.dataset.leaflet='';document.head.appendChild(css)}let script=document.createElement('script');script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.onload=()=>resolve(window.L);script.onerror=()=>reject(new Error('Não foi possível carregar o mapa. Confirma a ligação à Internet.'));document.head.appendChild(script)}).catch(e=>{mapLibraryPromise=null;throw e});return mapLibraryPromise}
-async function initCustomerMap(){if(!el('csi-map'))return;try{const L=await ensureLeaflet();await ensureCluster();if(!el('csi-map')||s.page!=='map'||mapInstance)return;mapInstance=L.map('csi-map',{scrollWheelZoom:false}).setView([39.55,-8.00],7);setMapBase();mapCluster=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:55});mapInstance.addLayer(mapCluster);for(const located of s.mapLocated){const c=s.clients.find(x=>x.id===located.id);if(!c)continue;addCustomerMarker(c,located.lat,located.lon)}}catch(e){const node=el('csi-map');if(node)node.textContent=e.message}}
+async function initCustomerMap(){if(!el('csi-map'))return;try{const L=await ensureLeaflet();await ensureCluster();if(!el('csi-map')||s.page!=='map'||mapInstance)return;mapInstance=L.map('csi-map',{scrollWheelZoom:false}).setView([39.55,-8.00],7);setMapBase();mapCluster=L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,maxClusterRadius:55});mapInstance.addLayer(mapCluster);for(const located of s.mapLocated){const c=s.clients.find(x=>x.id===located.id);if(!c)continue;addCustomerMarker(c,located.lat,located.lon)}syncVisibleMapMarkers()}catch(e){const node=el('csi-map');if(node)node.textContent=e.message}}
 function geocodingQueries(c){
  // Não repetir o código postal nem distrito quando já estão dentro do campo morada.
  const raw=String(c.address||'').replace(/\r/g,' ').replace(/\n/g,', ');
@@ -323,7 +328,7 @@ async function locateCustomerOnMap(id){
   // Uma correspondência apenas ao CP pode apontar ao centro da localidade: não a declarar como localização exata.
   const {error:saveError}=await db.from('customer_locations').upsert({customer_id:id,latitude:lat,longitude:lon,address_key:addressKey(c),accuracy:'approximate',location_method:'address',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});if(saveError)throw Error('Não foi possível guardar a localização: '+saveError.message);s.mapLocated.push({id,lat,lon});
   if(s.page==='map'&&mapInstance){
-   const marker=addCustomerMarker(c,lat,lon);mapInstance.setView([lat,lon],16);if(marker&&mapCluster)mapCluster.zoomToShowLayer(marker,()=>marker.openPopup());else marker?.openPopup();
+   const marker=addCustomerMarker(c,lat,lon);syncVisibleMapMarkers();mapInstance.setView([lat,lon],16);if(marker&&mapCluster)mapCluster.zoomToShowLayer(marker,()=>marker.openPopup());else marker?.openPopup();
    refreshMapListing();
   }
  }catch(e){flash('Falha ao localizar: '+e.message)}
