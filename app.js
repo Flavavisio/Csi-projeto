@@ -119,10 +119,14 @@ function updateMapFilterUi(){
 
 function addressKey(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim().toLocaleLowerCase('pt-PT')).join('|')}
 async function loadSavedLocations(){
- const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key');
- if(error){console.warn('Localizações guardadas indisponíveis',error.message);return}
+ const all=[];
+ for(let offset=0;offset<50000;offset+=1000){
+  const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key').range(offset,offset+999);
+  if(error){console.warn('Localizações guardadas indisponíveis',error.message);return}
+  all.push(...data);if(data.length<1000)break;
+ }
  const indexed=new Map(s.clients.map(c=>[c.id,c]));
- s.mapLocated=(data||[]).filter(p=>{const c=indexed.get(p.customer_id);return c&&p.address_key===addressKey(c)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude}));
+ s.mapLocated=all.filter(p=>{const customer=indexed.get(p.customer_id);return customer&&p.address_key===addressKey(customer)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude}));
 }
 function routeAddress(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim()).filter(Boolean).join(', ')}
 function routeStops(){return s.routeIds.map(id=>s.clients.find(c=>c.id===id)).filter(Boolean)}
@@ -190,7 +194,7 @@ function mapPage(){
  +'<div><label>Visita</label>'+select('mapvisited',[['all','Todos'],['yes','Visitado'],['no','Não visitado']],s.mapVisited)+'</div>'
  +'<div><label>Localização no mapa</label>'+select('maplocation',[['all','Todos os clientes'],['located','Com coordenadas'],['missing','Por localizar']],s.mapLocation)+'</div>'
  +'<div class="map-filter-actions"><button class="btn" data-act="mapreset">Limpar filtros</button></div></div>'
- +'<div id="suggestpanel">'+suggestionPanel()+'</div><div id="routepanel">'+routePanel()+'</div><div class="map-layout"><div class="card map-surface"><div class="map-layer-picker"><label for="mapbase">Tipo de mapa</label>'+select('mapbase',[['streets','Ruas (OpenStreetMap)'],['topo','Ruas detalhadas (Esri)'],['satellite','Satélite (Esri)']],s.mapBase)+'</div><div id="csi-map" aria-label="Mapa interativo de clientes"></div><p class="muted map-attribution">Mapa © OpenStreetMap. Pontos obtidos por geocodificação; confirma a morada antes de viajar.</p></div><div class="card map-list"><div class="row between"><h2>Clientes</h2><div class="map-page-nav"><button class="btn" data-act="mapprev" aria-label="40 clientes anteriores" title="40 clientes anteriores" '+(s.mapOffset===0?'disabled':'')+'>←</button><button class="btn" data-act="mapnext" aria-label="40 clientes seguintes" title="40 clientes seguintes" '+(s.mapOffset+40>=mapMatches().length?'disabled':'')+'>→</button><button class="btn" data-act="mapclear">Limpar pontos</button></div></div><div id="mapresults">'+mapResults()+'</div></div></div>';
+ +'<div id="suggestpanel">'+suggestionPanel()+'</div><div id="routepanel">'+routePanel()+'</div><div class="map-layout"><div class="card map-surface"><div class="map-layer-picker"><label for="mapbase">Tipo de mapa</label>'+select('mapbase',[['streets','Ruas (OpenStreetMap)'],['topo','Ruas detalhadas (Esri)'],['satellite','Satélite (Esri)']],s.mapBase)+'</div><div id="csi-map" aria-label="Mapa interativo de clientes"></div><p class="muted map-attribution">Mapa © OpenStreetMap. Pontos obtidos por geocodificação; confirma a morada antes de viajar.</p></div><div class="card map-list"><div class="row between"><h2>Clientes</h2><div class="map-page-nav"><button class="btn" data-act="mapprev" aria-label="40 clientes anteriores" title="40 clientes anteriores" '+(s.mapOffset===0?'disabled':'')+'>←</button><button class="btn" data-act="mapnext" aria-label="40 clientes seguintes" title="40 clientes seguintes" '+(s.mapOffset+40>=mapMatches().length?'disabled':'')+'>→</button><button class="btn" data-act="mapclear">Ocultar pontos</button></div></div><div id="mapresults">'+mapResults()+'</div></div></div>';
 }
 
 function changeRoute(id,action){const c=s.clients.find(x=>x.id===id);if(!c)return;if(action==='add'){if(s.routeIds.includes(id))return;if(s.routeIds.length>=8){flash('Máximo de 8 clientes por roteiro.');return}if(!routeAddress(c)){flash('Preenche primeiro a morada do cliente.');return}s.routeIds.push(id)}else if(action==='remove'){s.routeIds=s.routeIds.filter(x=>x!==id)}else{let index=s.routeIds.indexOf(id),target=index+(action==='up'?-1:1);if(index<0||target<0||target>=s.routeIds.length)return;[s.routeIds[index],s.routeIds[target]]=[s.routeIds[target],s.routeIds[index]]}refreshRoute()}
