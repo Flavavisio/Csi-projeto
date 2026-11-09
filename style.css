@@ -178,3 +178,7 @@
 .smart-results .map-client{border:1px solid #e2e8f0;border-radius:12px;padding:12px}
 [data-theme='dark'] .smart-results .map-client{border-color:#475569}
 @media(max-width:700px){.smart-controls{grid-template-columns:1fr 1fr}.smart-controls>div:first-child{grid-column:1/-1}.smart-panel>.row .btn{flex:1}}
+
+/* Localização automática do mapa */
+.auto-map{margin:12px 0 18px}.auto-map h2{margin:0 0 5px}.auto-map>.row{gap:12px}.auto-map .row .btn{min-height:42px}.auto-map #auto-map-status{font-size:12px}
+@media(max-width:650px){.auto-map>.row{align-items:flex-start}.auto-map .row .btn{flex:1}.auto-map .row #auto-map-status{flex-basis:100%}}
