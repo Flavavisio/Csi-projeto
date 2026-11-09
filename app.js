@@ -125,12 +125,12 @@ function addressKey(c){return [c.address,c.postal_code,c.municipality,c.district
 async function loadSavedLocations(){
  const all=[];
  for(let offset=0;offset<50000;offset+=1000){
-  const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key,accuracy').range(offset,offset+999);
+  const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key,accuracy,location_method').range(offset,offset+999);
   if(error){console.warn('Localizações guardadas indisponíveis',error.message);return}
   all.push(...data);if(data.length<1000)break;
  }
  const indexed=new Map(s.clients.map(c=>[c.id,c]));
- s.mapLocated=all.filter(p=>{const customer=indexed.get(p.customer_id);return customer&&p.address_key===addressKey(customer)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude,source:p.accuracy==='approximate'?'postcode':'manual'}));
+ s.mapLocated=all.filter(p=>{const customer=indexed.get(p.customer_id);return customer&&p.address_key===addressKey(customer)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude,source:p.location_method||'address'}));
 }
 function routeAddress(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim()).filter(Boolean).join(', ')}
 function routeStops(){return s.routeIds.map(id=>s.clients.find(c=>c.id===id)).filter(Boolean)}
@@ -209,7 +209,7 @@ async function bulkLocatePostcodes(){
     await new Promise(r=>setTimeout(r,400));
    }
    if(!pos){failed++;progress();continue}
-   const {error}=await db.from('customer_locations').upsert({customer_id:c.id,latitude:pos.lat,longitude:pos.lon,address_key:addressKey(c),accuracy:'approximate',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});
+   const {error}=await db.from('customer_locations').upsert({customer_id:c.id,latitude:pos.lat,longitude:pos.lon,address_key:addressKey(c),accuracy:'approximate',location_method:'postcode',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});
    if(error){failed++;console.warn('Falhou guardar localização',error.message);progress();continue}
    const p={id:c.id,lat:pos.lat,lon:pos.lon,source:'postcode'};s.mapLocated.push(p);existing.set(c.id,p);
    if(mapInstance)addCustomerMarker(c,pos.lat,pos.lon);
@@ -321,7 +321,7 @@ async function locateCustomerOnMap(id){
   const lat=Number(found.lat),lon=Number(found.lon);
   if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Coordenadas inválidas');
   // Uma correspondência apenas ao CP pode apontar ao centro da localidade: não a declarar como localização exata.
-  const {error:saveError}=await db.from('customer_locations').upsert({customer_id:id,latitude:lat,longitude:lon,address_key:addressKey(c),accuracy:'approximate',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});if(saveError)throw Error('Não foi possível guardar a localização: '+saveError.message);s.mapLocated.push({id,lat,lon});
+  const {error:saveError}=await db.from('customer_locations').upsert({customer_id:id,latitude:lat,longitude:lon,address_key:addressKey(c),accuracy:'approximate',location_method:'address',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});if(saveError)throw Error('Não foi possível guardar a localização: '+saveError.message);s.mapLocated.push({id,lat,lon});
   if(s.page==='map'&&mapInstance){
    const marker=addCustomerMarker(c,lat,lon);mapInstance.setView([lat,lon],16);if(marker&&mapCluster)mapCluster.zoomToShowLayer(marker,()=>marker.openPopup());else marker?.openPopup();
    refreshMapListing();
