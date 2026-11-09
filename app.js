@@ -10,24 +10,24 @@ let currentTheme=loadTheme();
 function applyTheme(){document.documentElement.setAttribute('data-theme',currentTheme);document.documentElement.style.colorScheme=currentTheme==='dark'?'dark':'light';const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=currentTheme==='dark'?'#111827':'#16223a'}
 function toggleTheme(){currentTheme=currentTheme==='dark'?'light':'dark';try{localStorage.setItem('csi-campo-theme',currentTheme)}catch{}applyTheme();render()}
 applyTheme();
-const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'github-pages');
+const CSI_CURRENT_BUILD=String(window.__CSI_BUILD||'28');
 let csiNextBuild=null,csiCheckInProgress=false;
 function csiShowUpdate(next){if(!next||next===CSI_CURRENT_BUILD)return;csiNextBuild=next;const button=el('csi-update');if(button){button.classList.remove('hide');button.textContent='↻ Nova versão disponível — Atualizar app'}const version=el('csi-build');if(version)version.textContent='Nova versão disponível'}
 async function csiCheckForUpdate(manual=false){
  if(csiCheckInProgress)return;csiCheckInProgress=true;
  try{
-  if(CSI_CURRENT_BUILD!=='github-pages'){
-   const endpoint=new URL(location.href);endpoint.searchParams.set('csi_version','1');endpoint.searchParams.set('_',String(Date.now()));
-   const response=await fetch(endpoint.toString(),{cache:'no-store',headers:{Accept:'application/json'}});
-   if(!response.ok)throw Error('Não foi possível consultar a versão');
-   const data=await response.json();if(!data.build)throw Error('Resposta de versão inválida');
-   if(data.build!==CSI_CURRENT_BUILD)csiShowUpdate(data.build);
-   else if(manual)flash('A aplicação já está atualizada (v'+String(CSI_CURRENT_BUILD).slice(0,7)+').');
-  }else{
-   if('serviceWorker' in navigator){const registration=await navigator.serviceWorker.getRegistration('./');if(registration){await registration.update();if(registration.waiting)csiShowUpdate('pwa');}}
-   if(manual&&!csiNextBuild)flash('Verificação concluída. Sem atualização pendente.');
+  const response=await fetch('./version.json?check='+Date.now(),{cache:'no-store'});
+  if(!response.ok)throw Error('Não foi possível consultar a versão');
+  const data=await response.json();
+  if(!data.build)throw Error('Resposta de versão inválida');
+  if(String(data.build)!==CSI_CURRENT_BUILD)csiShowUpdate(String(data.build));
+  if('serviceWorker' in navigator){
+   const registration=await navigator.serviceWorker.getRegistration('./');
+   if(registration){await registration.update();if(registration.waiting)csiShowUpdate(String(data.build));}
   }
- }catch(e){if(manual)flash('Não foi possível verificar atualizações: '+e.message)}finally{csiCheckInProgress=false}
+  if(manual&&!csiNextBuild)flash('Já tens a versão mais recente.');
+ }catch(e){if(manual)flash('Não foi possível verificar atualizações: '+e.message)}
+ finally{csiCheckInProgress=false}
 }
 async function csiApplyUpdate(){
  const button=el('csi-update');if(button){button.disabled=true;button.textContent='A atualizar...'}
@@ -44,7 +44,7 @@ function csiWatchVersions(){
  setInterval(()=>csiCheckForUpdate(),300000);
  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('controllerchange',()=>csiShowUpdate('pwa'));
 }
-function menu(){return '<header><div class="row"><span class="logo">CSI</span><b>Pesquisa de Campo <small class="muted">· 2026</small></b></div><div class="row"><small id="csi-build" class="muted">v'+E(CSI_CURRENT_BUILD.slice(0,7))+'</small><button class="btn csi-update-btn hide" id="csi-update" data-act="csiupdate">↻ Nova versão disponível — Atualizar app</button><button class="btn" data-act="csicheck" title="Verificar atualização">↻ Verificar</button><small class="muted">'+E(s.user.email)+'</small><button class="btn theme-toggle" data-act="theme" aria-label="'+(currentTheme==='dark'?'Ativar modo dia':'Ativar modo noite')+'" title="'+(currentTheme==='dark'?'Modo dia':'Modo noite')+'">'+(currentTheme==='dark'?'☀️':'🌙')+'</button><button class="btn" data-act="password" aria-label="Definições">⚙</button><button class="btn" data-act="logout">Sair</button></div></header>'}
+function menu(){return '<header><div class="row"><span class="logo">CSI</span><b>Pesquisa de Campo <small class="muted">· 2026</small></b></div><div class="row"><small id="csi-build" class="muted">v'+E(CSI_CURRENT_BUILD.slice(0,7))+'</small><button class="btn csi-update-btn '+(csiNextBuild?'':'hide')+'" id="csi-update" data-act="csiupdate">↻ Atualizar</button><button class="btn" data-act="csicheck" title="Verificar atualização">↻ Verificar</button><small class="muted">'+E(s.user.email)+'</small><button class="btn theme-toggle" data-act="theme" aria-label="'+(currentTheme==='dark'?'Ativar modo dia':'Ativar modo noite')+'" title="'+(currentTheme==='dark'?'Modo dia':'Modo noite')+'">'+(currentTheme==='dark'?'☀️':'🌙')+'</button><button class="btn" data-act="password" aria-label="Definições">⚙</button><button class="btn" data-act="logout">Sair</button></div></header>'}
 function login(){return '<div class="wrap auth"><div class="row"><span class="logo">CSI</span><h2>Pesquisa de Campo</h2></div><div class="card"><h1>Entrar</h1><p class="muted">Consulta rápida para comerciais.</p><form id="login"><label>Email</label><input class="field" type="email" name="email" required><label>Palavra-passe</label><input class="field" type="password" name="password" minlength="8" required><button class="btn primary" style="width:100%">Entrar</button></form><p><button class="btn" data-act="forgot">Recuperar acesso</button></p></div></div>'}
 const noVisit=c=>!s.visits.some(v=>v.customer_id===c.id),zero=c=>Number(c.annual_billing||0)===0,lowBilling=c=>Number(c.annual_billing||0)>=1&&Number(c.annual_billing||0)<=5000;
 const officialDistricts=['Aveiro','Beja','Braga','Bragança','Castelo Branco','Coimbra','Évora','Faro','Guarda','Leiria','Lisboa','Portalegre','Porto','Santarém','Setúbal','Viana do Castelo','Vila Real','Viseu'];
@@ -117,6 +117,13 @@ function updateMapFilterUi(){
  s.mapShown=40;s.mapOffset=0;refreshMapListing();
 }
 
+function addressKey(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim().toLocaleLowerCase('pt-PT')).join('|')}
+async function loadSavedLocations(){
+ const {data,error}=await db.from('customer_locations').select('customer_id,latitude,longitude,address_key');
+ if(error){console.warn('Localizações guardadas indisponíveis',error.message);return}
+ const indexed=new Map(s.clients.map(c=>[c.id,c]));
+ s.mapLocated=(data||[]).filter(p=>{const c=indexed.get(p.customer_id);return c&&p.address_key===addressKey(c)&&Number.isFinite(p.latitude)&&Number.isFinite(p.longitude)}).map(p=>({id:p.customer_id,lat:p.latitude,lon:p.longitude}));
+}
 function routeAddress(c){return [c.address,c.postal_code,c.municipality,c.district].map(x=>String(x||'').trim()).filter(Boolean).join(', ')}
 function routeStops(){return s.routeIds.map(id=>s.clients.find(c=>c.id===id)).filter(Boolean)}
 function routePanel(){
@@ -165,8 +172,8 @@ function mapResults(){
  const rows=mapMatches(),maxOffset=Math.max(0,Math.ceil(rows.length/40)-1)*40;
  s.mapOffset=Math.min(s.mapOffset,maxOffset);
  const start=s.mapOffset,chosen=rows.slice(start,start+40),found=s.mapLocated.filter(x=>rows.some(c=>c.id===x.id)).length;
- return '<div class="map-result-count"><b>'+rows.length+'</b> clientes encontrados · <b>'+found+'</b> localizados nesta sessão · <b>'+Math.max(0,rows.length-found)+'</b> por localizar. A mostrar '+(rows.length?start+1:0)+'–'+Math.min(start+40,rows.length)+'.</div>'
- +chosen.map(c=>{const located=s.mapLocated.some(x=>x.id===c.id);return '<div class="map-client"><div><b>'+E(c.name)+'</b><small>'+E([c.address,c.postal_code,c.municipality,c.parish].filter(Boolean).join(' · '))+'</small><small class="'+(located?'map-located':'map-unlocated')+'">'+(located?'● Localizado nesta sessão':'○ Por localizar')+'</small></div><div class="map-client-buttons"><button class="btn" data-act="maplocate" data-id="'+c.id+'">'+(located?'⌖ Ver ponto':'⌖ Localizar')+'</button><button class="btn '+(s.routeIds.includes(c.id)?'route-added':'')+'" data-act="'+(s.routeIds.includes(c.id)?'routeremove':'routeadd')+'" data-id="'+c.id+'">'+(s.routeIds.includes(c.id)?'✓ Na rota':'+ Rota')+'</button></div></div>'}).join('');
+ return '<div class="map-result-count"><b>'+rows.length+'</b> clientes encontrados · <b>'+found+'</b> com coordenadas guardadas · <b>'+Math.max(0,rows.length-found)+'</b> por localizar. A mostrar '+(rows.length?start+1:0)+'–'+Math.min(start+40,rows.length)+'.</div>'
+ +chosen.map(c=>{const located=s.mapLocated.some(x=>x.id===c.id);return '<div class="map-client"><div><b>'+E(c.name)+'</b><small>'+E([c.address,c.postal_code,c.municipality,c.parish].filter(Boolean).join(' · '))+'</small><small class="'+(located?'map-located':'map-unlocated')+'">'+(located?'● Coordenadas guardadas':'○ Por localizar')+'</small></div><div class="map-client-buttons"><button class="btn" data-act="maplocate" data-id="'+c.id+'">'+(located?'⌖ Ver ponto':'⌖ Localizar')+'</button><button class="btn '+(s.routeIds.includes(c.id)?'route-added':'')+'" data-act="'+(s.routeIds.includes(c.id)?'routeremove':'routeadd')+'" data-id="'+c.id+'">'+(s.routeIds.includes(c.id)?'✓ Na rota':'+ Rota')+'</button></div></div>'}).join('');
 }
 function mapPage(){
  const d=[...new Set(s.clients.map(districtGroup).filter(x=>x!=='other'))].sort((a,b)=>a.localeCompare(b,'pt'));
@@ -181,7 +188,7 @@ function mapPage(){
  +'<div><label>Registo prévio</label>'+select('mapregistered',[['all','Todos'],['yes','Com registo'],['no','Sem registo']],s.mapRegistered)+'</div>'
  +'<div><label>Estado</label>'+select('mapopened',[['all','Todos'],['yes','Aberto'],['no','Por abrir']],s.mapOpened)+'</div>'
  +'<div><label>Visita</label>'+select('mapvisited',[['all','Todos'],['yes','Visitado'],['no','Não visitado']],s.mapVisited)+'</div>'
- +'<div><label>Localização no mapa</label>'+select('maplocation',[['all','Todos os clientes'],['located','Localizados nesta sessão'],['missing','Por localizar']],s.mapLocation)+'</div>'
+ +'<div><label>Localização no mapa</label>'+select('maplocation',[['all','Todos os clientes'],['located','Com coordenadas'],['missing','Por localizar']],s.mapLocation)+'</div>'
  +'<div class="map-filter-actions"><button class="btn" data-act="mapreset">Limpar filtros</button></div></div>'
  +'<div id="suggestpanel">'+suggestionPanel()+'</div><div id="routepanel">'+routePanel()+'</div><div class="map-layout"><div class="card map-surface"><div class="map-layer-picker"><label for="mapbase">Tipo de mapa</label>'+select('mapbase',[['streets','Ruas (OpenStreetMap)'],['topo','Ruas detalhadas (Esri)'],['satellite','Satélite (Esri)']],s.mapBase)+'</div><div id="csi-map" aria-label="Mapa interativo de clientes"></div><p class="muted map-attribution">Mapa © OpenStreetMap. Pontos obtidos por geocodificação; confirma a morada antes de viajar.</p></div><div class="card map-list"><div class="row between"><h2>Clientes</h2><div class="map-page-nav"><button class="btn" data-act="mapprev" aria-label="40 clientes anteriores" title="40 clientes anteriores" '+(s.mapOffset===0?'disabled':'')+'>←</button><button class="btn" data-act="mapnext" aria-label="40 clientes seguintes" title="40 clientes seguintes" '+(s.mapOffset+40>=mapMatches().length?'disabled':'')+'>→</button><button class="btn" data-act="mapclear">Limpar pontos</button></div></div><div id="mapresults">'+mapResults()+'</div></div></div>';
 }
@@ -244,7 +251,7 @@ async function locateCustomerOnMap(id){
  if(previous){mapInstance.setView([previous.lat,previous.lon],16);const marker=mapMarkers.get(id);if(marker&&mapCluster)mapCluster.zoomToShowLayer(marker,()=>marker.openPopup());else marker?.openPopup();return}
  const queries=geocodingQueries(c);
  if(!queries.length){flash('Falta a rua ou o código postal. Confirma a morada do cliente.');return}
- if(s.mapLocated.length>=25){flash('Máximo de 25 pontos nesta sessão. Limpa os pontos para continuar.');return}
+ 
  mapBusy=true;
  try{
   let found=null;
@@ -261,7 +268,7 @@ async function locateCustomerOnMap(id){
   const lat=Number(found.lat),lon=Number(found.lon);
   if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Coordenadas inválidas');
   // Uma correspondência apenas ao CP pode apontar ao centro da localidade: não a declarar como localização exata.
-  s.mapLocated.push({id,lat,lon});
+  const {error:saveError}=await db.from('customer_locations').upsert({customer_id:id,latitude:lat,longitude:lon,address_key:addressKey(c),accuracy:'approximate',updated_at:new Date().toISOString(),updated_by:s.user.id},{onConflict:'customer_id'});if(saveError)throw Error('Não foi possível guardar a localização: '+saveError.message);s.mapLocated.push({id,lat,lon});
   if(s.page==='map'&&mapInstance){
    const marker=addCustomerMarker(c,lat,lon);mapInstance.setView([lat,lon],16);if(marker&&mapCluster)mapCluster.zoomToShowLayer(marker,()=>marker.openPopup());else marker?.openPopup();
    refreshMapListing();
@@ -269,11 +276,11 @@ async function locateCustomerOnMap(id){
  }catch(e){flash('Falha ao localizar: '+e.message)}
  finally{mapBusy=false}
 }
-function clearMap(){s.mapLocated=[];if(mapCluster)mapCluster.clearLayers();else if(mapInstance){for(const marker of mapMarkers.values())marker.remove()}mapMarkers.clear();refreshMapListing();flash('Pontos retirados do mapa')}
+function clearMap(){if(mapCluster)mapCluster.clearLayers();else if(mapInstance){for(const marker of mapMarkers.values())marker.remove()}mapMarkers.clear();refreshMapListing();flash('Marcadores ocultados. As coordenadas guardadas mantêm-se na base de dados; reabre o mapa para as recuperar.')}
 
-function render(){if(mapInstance){mapInstance.remove();mapInstance=null;mapTiles=null;mapCluster=null;mapMarkers.clear()}el('app').innerHTML=s.user?menu()+'<main class="wrap">'+(s.page==='home'?home():s.page==='clients'?clients():s.page==='map'?mapPage():s.page==='incidents'?incidents():s.page==='stats'?stats():admin())+'</main>':login();if(s.user&&s.page==='map')queueMicrotask(initCustomerMap)}
+function render(){if(mapInstance){mapInstance.remove();mapInstance=null;mapTiles=null;mapCluster=null;mapMarkers.clear()}el('app').innerHTML=s.user?menu()+'<main class="wrap">'+(s.page==='home'?home():s.page==='clients'?clients():s.page==='map'?mapPage():s.page==='incidents'?incidents():s.page==='stats'?stats():admin())+'</main>':login();if(s.user&&s.page==='map')queueMicrotask(initCustomerMap);if(csiNextBuild)csiShowUpdate(csiNextBuild)}
 async function getAll(table){let out=[];for(let p=0;p<50;p++){let query=db.from(table).select('*');if(table==='customers')query=query.eq('is_active',true);let {data,error}=await query.range(p*1000,p*1000+999);if(error)throw error;out.push(...data);if(data.length<1000)break}return out}
-async function refresh(){let [clients,visits,types,incidents,comments,profiles]=await Promise.all(['customers','visits','incident_categories','incidents','customer_comments','profiles'].map(getAll));clients.sort((a,b)=>String(a.name||'').trim().localeCompare(String(b.name||'').trim(),'pt-PT',{sensitivity:'base',numeric:true})||String(a.nif||'').localeCompare(String(b.nif||''),'pt-PT',{numeric:true}));Object.assign(s,{clients,visits,types,incidents,comments,profiles});render()}
+async function refresh(){let [clients,visits,types,incidents,comments,profiles]=await Promise.all(['customers','visits','incident_categories','incidents','customer_comments','profiles'].map(getAll));clients.sort((a,b)=>String(a.name||'').trim().localeCompare(String(b.name||'').trim(),'pt-PT',{sensitivity:'base',numeric:true})||String(a.nif||'').localeCompare(String(b.nif||''),'pt-PT',{numeric:true}));Object.assign(s,{clients,visits,types,incidents,comments,profiles});await loadSavedLocations();render()}
 async function init(){let {data:{session}}=await db.auth.getSession();s.user=session?.user||null;if(s.user){let {data}=await db.from('profiles').select('role').eq('user_id',s.user.id).maybeSingle();s.admin=data?.role==='admin';try{await refresh()}catch(e){render();flash(e.message)}}else render()}
 function csv(rows){return rows.map(r=>r.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"'}).join(';')).join('\r\n')}
 function download(name,text){let url=URL.createObjectURL(new Blob(['\uFEFF',text],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
