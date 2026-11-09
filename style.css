@@ -167,3 +167,14 @@
 .map-layer-picker label{font-size:12px;font-weight:700;white-space:nowrap}
 .map-layer-picker .field{min-width:0;max-width:270px;margin:0}
 @media(max-width:520px){.map-list>.row{align-items:flex-start;gap:9px}.map-page-nav{gap:5px}.map-page-nav .btn{font-size:12px}.map-layer-picker{align-items:stretch;flex-direction:column}.map-layer-picker .field{max-width:none}}
+
+/* CSI mapa inteligente — recomendações de visitas */
+.smart-panel{margin:14px 0 18px}
+.smart-panel h2{margin-top:0}
+.smart-controls{display:grid;grid-template-columns:2fr 1fr 1.5fr;gap:12px;align-items:end;margin:15px 0 8px}
+.smart-controls>div{min-width:0}
+.smart-controls .field{margin-bottom:4px}
+.smart-results{display:grid;gap:8px;margin-top:16px}
+.smart-results .map-client{border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+[data-theme='dark'] .smart-results .map-client{border-color:#475569}
+@media(max-width:700px){.smart-controls{grid-template-columns:1fr 1fr}.smart-controls>div:first-child{grid-column:1/-1}.smart-panel>.row .btn{flex:1}}
